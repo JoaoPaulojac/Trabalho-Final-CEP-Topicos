@@ -4,3 +4,7 @@ httpx
 pydantic
 requests
 python-dotenv
+matplotlib
+numpy
+scipy
+pandas

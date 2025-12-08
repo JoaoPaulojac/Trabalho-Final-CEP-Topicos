@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional, List
+from fastapi.responses import FileResponse
+from typing import Optional, List, Dict
 from pydantic import BaseModel
 import logging
 import json
@@ -8,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import sys
+import base64
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -280,6 +283,177 @@ async def clear_history():
         return {"message": "Histórico limpo com sucesso"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao limpar histórico: {str(e)}")
+
+# ==================== CEP ENDPOINTS ====================
+
+class CEPAnalysisResponse(BaseModel):
+    status: str
+    message: str
+    data: Optional[Dict] = None
+    chart_base64: Optional[str] = None
+    report_available: bool = False
+
+@app.post("/cep/analyze")
+async def analyze_cep():
+    """
+    Executa análise CEP nos dados de temperatura
+    """
+    try:
+        # Verificar se há dados suficientes
+        data = load_data()
+        
+        if len(data) < 5:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dados insuficientes para análise CEP. Necessário mínimo 5 amostras, encontradas {len(data)}"
+            )
+        
+        # Adicionar path do CEP-Prova
+        cep_path = Path(__file__).parent.parent / "CEP-Prova" / "src"
+        if str(cep_path) not in sys.path:
+            sys.path.append(str(cep_path))
+        
+        from x_r_graphs import XR_graph
+        from process_capability import calculate_capability
+        
+        # Caminhos
+        temperature_data_path = str(DATA_FILE.absolute())
+        constants_path = str(cep_path / "json_files" / "constantes_cep.json")
+        
+        # Criar gráfico X-R
+        logger.info("Iniciando análise CEP...")
+        xr = XR_graph(data_url=temperature_data_path, constants_url=constants_path)
+        
+        # Limites de especificação
+        LSE_TEMP = 28.0
+        LIE_TEMP = 18.0
+        
+        xr.set_specification_limits(LSE_TEMP, LIE_TEMP)
+        xr.analyze_control_status()
+        calculate_capability(xr, lse=LSE_TEMP, lie=LIE_TEMP, type_chart="X-R")
+        
+        # Ler gráfico gerado
+        chart_path = Path(__file__).parent / "grafico_controle_xr.png"
+        chart_base64 = None
+        
+        if chart_path.exists():
+            with open(chart_path, "rb") as f:
+                chart_base64 = base64.b64encode(f.read()).decode('utf-8')
+        
+        # Preparar dados de resposta
+        analysis_data = {
+            "x_double_mean": float(xr.x_double_mean),
+            "r_mean": float(xr.r_mean),
+            "sigma": float(xr.sigma),
+            "lsc_x_bar": float(xr.lsc_x_bar_graph),
+            "lic_x_bar": float(xr.lic_x_bar_graph),
+            "lsc_r": float(xr.lsc_r_bar_graph),
+            "lic_r": float(xr.lic_r_bar_graph),
+            "lse": LSE_TEMP,
+            "lie": LIE_TEMP,
+            "total_samples": len(data),
+            "out_of_control_x": int(len(xr.df[(xr.df['X_bar'] > xr.lsc_x_bar_graph) | (xr.df['X_bar'] < xr.lic_x_bar_graph)])),
+            "out_of_control_r": int(len(xr.df[xr.df['R'] > xr.lsc_r_bar_graph]))
+        }
+        
+        # Adicionar capacidade do processo se disponível
+        if hasattr(xr, 'capability'):
+            analysis_data['capability'] = {
+                'rcp': float(xr.capability.rcp) if xr.capability.rcp else None,
+                'rcpk': float(xr.capability.rcpk) if xr.capability.rcpk else None,
+                'rcps': float(xr.capability.rcps) if xr.capability.rcps else None,
+                'rcpi': float(xr.capability.rcpi) if xr.capability.rcpi else None,
+            }
+        
+        logger.info("Análise CEP concluída com sucesso")
+        
+        return {
+            "status": "success",
+            "message": "Análise CEP executada com sucesso",
+            "data": analysis_data,
+            "chart_base64": chart_base64,
+            "report_available": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro na análise CEP: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erro ao executar análise CEP: {str(e)}")
+
+@app.get("/cep/chart")
+async def get_cep_chart():
+    """
+    Retorna o gráfico CEP gerado
+    """
+    try:
+        chart_path = Path(__file__).parent / "grafico_controle_xr.png"
+        
+        if not chart_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="Gráfico não encontrado. Execute a análise CEP primeiro."
+            )
+        
+        return FileResponse(
+            path=chart_path,
+            media_type="image/png",
+            filename="grafico_controle_xr.png"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter gráfico: {str(e)}")
+
+@app.get("/cep/report")
+async def get_cep_report():
+    """
+    Retorna o relatório HTML gerado
+    """
+    try:
+        report_path = Path(__file__).parent / "relatorio_cep_xr.html"
+        
+        if not report_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail="Relatório não encontrado. Execute a análise CEP primeiro."
+            )
+        
+        return FileResponse(
+            path=report_path,
+            media_type="text/html",
+            filename="relatorio_cep_xr.html"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao obter relatório: {str(e)}")
+
+@app.get("/cep/status")
+async def get_cep_status():
+    """
+    Verifica se há análise CEP disponível
+    """
+    try:
+        data = load_data()
+        chart_path = Path(__file__).parent / "grafico_controle_xr.png"
+        report_path = Path(__file__).parent / "relatorio_cep_xr.html"
+        
+        return {
+            "data_available": len(data) >= 5,
+            "total_samples": len(data),
+            "minimum_required": 5,
+            "chart_exists": chart_path.exists(),
+            "report_exists": report_path.exists(),
+            "can_analyze": len(data) >= 5
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao verificar status CEP: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
