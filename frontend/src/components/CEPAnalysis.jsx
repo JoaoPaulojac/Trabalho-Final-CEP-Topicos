@@ -24,13 +24,13 @@ function CEPAnalysis() {
     }
   };
 
-  // Executar análise CEP
+  // Executar análise CEP combinada
   const runAnalysis = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/cep/analyze`, {
+      const response = await fetch(`${API_BASE_URL}/cep/analyze/combined`, {
         method: 'POST',
       });
 
@@ -50,15 +50,7 @@ function CEPAnalysis() {
     }
   };
 
-  // Abrir relatório HTML
-  const openReport = () => {
-    window.open(`${API_BASE_URL}/cep/report`, '_blank');
-  };
-
-  // Baixar gráfico
-  const downloadChart = () => {
-    window.open(`${API_BASE_URL}/cep/chart`, '_blank');
-  };
+  const canAnalyze = status?.combined_analysis_available || false;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1e1e2f] via-[#252540] to-[#2a2a4a] p-5">
@@ -69,7 +61,7 @@ function CEPAnalysis() {
             📊 Análise CEP - Controle Estatístico de Processo
           </h1>
           <p className="text-gray-400 text-base md:text-lg">
-            Análise estatística dos dados de temperatura coletados
+            Análise estatística de Temperatura e Umidade
           </p>
         </header>
 
@@ -77,36 +69,54 @@ function CEPAnalysis() {
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6 border border-white/20">
           <h2 className="text-2xl font-bold text-white mb-4">Status do Sistema</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-gray-400 text-sm mb-1">Amostras Coletadas</div>
-              <div className="text-3xl font-bold text-white">
-                {status?.total_samples || 0}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Mínimo necessário: {status?.minimum_required || 5}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+            {/* Status Temperatura */}
+            <div className="bg-white/5 rounded-xl p-4">
+              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                🌡️ Temperatura
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Amostras:</span>
+                  <span className="text-white font-semibold">{status?.temperature?.total_samples || 0} / 5</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Status:</span>
+                  <span className={status?.temperature?.can_analyze ? 'text-green-400' : 'text-yellow-400'}>
+                    {status?.temperature?.can_analyze ? '✓ Pronto' : '⏳ Aguardando'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Relatório:</span>
+                  <span className={status?.temperature?.report_exists ? 'text-green-400' : 'text-gray-500'}>
+                    {status?.temperature?.report_exists ? '✓' : '✗'}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-gray-400 text-sm mb-1">Análise Disponível</div>
-              <div className="text-3xl font-bold">
-                {status?.can_analyze ? (
-                  <span className="text-green-500">✓ Sim</span>
-                ) : (
-                  <span className="text-yellow-500">✗ Não</span>
-                )}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {status?.data_available ? 'Dados suficientes' : 'Aguardando mais dados'}
-              </div>
-            </div>
-
-            <div className="bg-white/5 rounded-lg p-4">
-              <div className="text-gray-400 text-sm mb-1">Relatórios Gerados</div>
-              <div className="text-sm text-white mt-2">
-                <div>Gráfico: {status?.chart_exists ? '✓' : '✗'}</div>
-                <div>Relatório HTML: {status?.report_exists ? '✓' : '✗'}</div>
+            {/* Status Umidade */}
+            <div className="bg-white/5 rounded-xl p-4">
+              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                💧 Umidade
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Amostras:</span>
+                  <span className="text-white font-semibold">{status?.humidity?.total_samples || 0} / 5</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Status:</span>
+                  <span className={status?.humidity?.can_analyze ? 'text-green-400' : 'text-yellow-400'}>
+                    {status?.humidity?.can_analyze ? '✓ Pronto' : '⏳ Aguardando'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Relatório:</span>
+                  <span className={status?.humidity?.report_exists ? 'text-green-400' : 'text-gray-500'}>
+                    {status?.humidity?.report_exists ? '✓' : '✗'}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -114,9 +124,9 @@ function CEPAnalysis() {
           {/* Botão Gerar Análise */}
           <button
             onClick={runAnalysis}
-            disabled={loading || !status?.can_analyze}
+            disabled={loading || !canAnalyze}
             className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all ${
-              loading || !status?.can_analyze
+              loading || !canAnalyze
                 ? 'bg-gray-600 cursor-not-allowed opacity-50'
                 : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl'
             } text-white`}
@@ -124,16 +134,16 @@ function CEPAnalysis() {
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Executando Análise CEP...
+                Executando Análise CEP Combinada...
               </span>
             ) : (
-              '🔬 Gerar Análise CEP'
+              '🔬 Gerar Análise CEP (Temperatura + Umidade)'
             )}
           </button>
 
-          {!status?.can_analyze && status && (
+          {!canAnalyze && status && (
             <div className="mt-3 text-center text-yellow-400 text-sm">
-              ⚠️ Colete pelo menos {status.minimum_required - status.total_samples} amostra(s) para realizar a análise
+              ⚠️ Colete pelo menos 5 amostras de temperatura e umidade para realizar a análise
             </div>
           )}
         </div>
@@ -145,233 +155,466 @@ function CEPAnalysis() {
           </div>
         )}
 
-        {/* Resultados da Análise */}
+        {/* Resultados da Análise Combinada */}
         {analysis && analysis.status === 'success' && (
           <div className="space-y-6">
-            {/* Gráfico */}
-            {analysis.chart_base64 && (
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold text-white">Gráficos de Controle X-R</h2>
-                  <button
-                    onClick={downloadChart}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white text-sm transition-colors"
-                  >
-                    📥 Baixar Gráfico
-                  </button>
-                </div>
-                <img
-                  src={`data:image/png;base64,${analysis.chart_base64}`}
-                  alt="Gráfico de Controle CEP"
-                  className="w-full rounded-lg"
-                />
-              </div>
-            )}
-
-            {/* Estatísticas */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <h2 className="text-2xl font-bold text-white mb-4">Estatísticas do Processo</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-gray-400 text-sm mb-1">X̄̄ (Média das Médias)</div>
-                  <div className="text-2xl font-bold text-white">
-                    {analysis.data.x_double_mean.toFixed(2)}°C
+            {/* Gráficos de Controle - Lado a Lado */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Gráfico Temperatura */}
+              {analysis.temperature?.chart_base64 && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold text-white">🌡️ Controle X-R - Temperatura</h2>
+                    <button
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = `data:image/png;base64,${analysis.temperature.chart_base64}`;
+                        link.download = 'grafico_temperatura.png';
+                        link.click();
+                      }}
+                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white text-sm transition-colors"
+                    >
+                      📥 Baixar
+                    </button>
                   </div>
+                  <img
+                    src={`data:image/png;base64,${analysis.temperature.chart_base64}`}
+                    alt="Gráfico de Controle CEP - Temperatura"
+                    className="w-full rounded-lg"
+                  />
                 </div>
+              )}
 
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-gray-400 text-sm mb-1">R̄ (Amplitude Média)</div>
-                  <div className="text-2xl font-bold text-white">
-                    {analysis.data.r_mean.toFixed(2)}°C
+              {/* Gráfico Umidade */}
+              {analysis.humidity?.chart_base64 && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold text-white">💧 Controle X-R - Umidade</h2>
+                    <button
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = `data:image/png;base64,${analysis.humidity.chart_base64}`;
+                        link.download = 'grafico_umidade.png';
+                        link.click();
+                      }}
+                      className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg text-white text-sm transition-colors"
+                    >
+                      📥 Baixar
+                    </button>
                   </div>
+                  <img
+                    src={`data:image/png;base64,${analysis.humidity.chart_base64}`}
+                    alt="Gráfico de Controle CEP - Umidade"
+                    className="w-full rounded-lg"
+                  />
                 </div>
-
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-gray-400 text-sm mb-1">σ (Desvio Padrão)</div>
-                  <div className="text-2xl font-bold text-white">
-                    {analysis.data.sigma.toFixed(2)}°C
-                  </div>
-                </div>
-
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-gray-400 text-sm mb-1">Total de Amostras</div>
-                  <div className="text-2xl font-bold text-white">
-                    {analysis.data.total_samples}
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* Limites de Controle */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <h2 className="text-2xl font-bold text-white mb-4">Limites de Controle</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Gráfico X̄ */}
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-3">Gráfico X̄ (Média)</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center bg-red-500/20 rounded p-3">
-                      <span className="text-gray-300">LSC (Limite Superior)</span>
-                      <span className="font-bold text-white">{analysis.data.lsc_x_bar.toFixed(2)}°C</span>
-                    </div>
-                    <div className="flex justify-between items-center bg-green-500/20 rounded p-3">
-                      <span className="text-gray-300">LC (Linha Central)</span>
-                      <span className="font-bold text-white">{analysis.data.x_double_mean.toFixed(2)}°C</span>
-                    </div>
-                    <div className="flex justify-between items-center bg-red-500/20 rounded p-3">
-                      <span className="text-gray-300">LIC (Limite Inferior)</span>
-                      <span className="font-bold text-white">{analysis.data.lic_x_bar.toFixed(2)}°C</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Gráfico R */}
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-3">Gráfico R (Amplitude)</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center bg-red-500/20 rounded p-3">
-                      <span className="text-gray-300">LSC (Limite Superior)</span>
-                      <span className="font-bold text-white">{analysis.data.lsc_r.toFixed(2)}°C</span>
-                    </div>
-                    <div className="flex justify-between items-center bg-green-500/20 rounded p-3">
-                      <span className="text-gray-300">LC (Linha Central)</span>
-                      <span className="font-bold text-white">{analysis.data.r_mean.toFixed(2)}°C</span>
-                    </div>
-                    <div className="flex justify-between items-center bg-red-500/20 rounded p-3">
-                      <span className="text-gray-300">LIC (Limite Inferior)</span>
-                      <span className="font-bold text-white">{analysis.data.lic_r.toFixed(2)}°C</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Limites de Especificação */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <h2 className="text-2xl font-bold text-white mb-4">Limites de Especificação</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-gray-400 text-sm mb-1">LSE (Limite Superior)</div>
-                  <div className="text-3xl font-bold text-red-400">
-                    {analysis.data.lse}°C
-                  </div>
-                </div>
-
-                <div className="bg-white/5 rounded-lg p-4">
-                  <div className="text-gray-400 text-sm mb-1">LIE (Limite Inferior)</div>
-                  <div className="text-3xl font-bold text-blue-400">
-                    {analysis.data.lie}°C
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Status de Controle */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <h2 className="text-2xl font-bold text-white mb-4">Status de Controle</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className={`rounded-lg p-4 ${
-                  analysis.data.out_of_control_x === 0 
-                    ? 'bg-green-500/20 border border-green-500' 
-                    : 'bg-red-500/20 border border-red-500'
-                }`}>
-                  <div className="text-white font-semibold mb-2">Gráfico X̄</div>
-                  <div className="text-2xl font-bold text-white">
-                    {analysis.data.out_of_control_x === 0 ? '✓ SOB CONTROLE' : `✗ ${analysis.data.out_of_control_x} FORA DE CONTROLE`}
-                  </div>
-                </div>
-
-                <div className={`rounded-lg p-4 ${
-                  analysis.data.out_of_control_r === 0 
-                    ? 'bg-green-500/20 border border-green-500' 
-                    : 'bg-red-500/20 border border-red-500'
-                }`}>
-                  <div className="text-white font-semibold mb-2">Gráfico R</div>
-                  <div className="text-2xl font-bold text-white">
-                    {analysis.data.out_of_control_r === 0 ? '✓ SOB CONTROLE' : `✗ ${analysis.data.out_of_control_r} FORA DE CONTROLE`}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Capacidade do Processo */}
-            {analysis.data.capability && (
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <h2 className="text-2xl font-bold text-white mb-4">Capacidade do Processo</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {analysis.data.capability.rcp !== null && (
+            {/* Estatísticas - Lado a Lado */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Estatísticas Temperatura */}
+              {analysis.temperature?.data && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">🌡️ Estatísticas - Temperatura</h2>
+                  
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white/5 rounded-lg p-4">
-                      <div className="text-gray-400 text-sm mb-1">Cp (Capacidade Potencial)</div>
-                      <div className={`text-2xl font-bold ${
-                        analysis.data.capability.rcp >= 1.33 ? 'text-green-400' :
-                        analysis.data.capability.rcp >= 1.0 ? 'text-yellow-400' :
-                        'text-red-400'
-                      }`}>
-                        {analysis.data.capability.rcp.toFixed(3)}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {analysis.data.capability.rcp >= 1.33 ? '✓ Capaz' :
-                         analysis.data.capability.rcp >= 1.0 ? '⚠️ Aceitável' :
-                         '✗ Incapaz'}
-                      </div>
-                    </div>
-                  )}
-
-                  {analysis.data.capability.rcpk !== null && (
-                    <div className="bg-white/5 rounded-lg p-4">
-                      <div className="text-gray-400 text-sm mb-1">Cpk (Capacidade Real)</div>
-                      <div className={`text-2xl font-bold ${
-                        analysis.data.capability.rcpk >= 1.33 ? 'text-green-400' :
-                        analysis.data.capability.rcpk >= 1.0 ? 'text-yellow-400' :
-                        'text-red-400'
-                      }`}>
-                        {analysis.data.capability.rcpk.toFixed(3)}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {analysis.data.capability.rcpk >= 1.33 ? '✓ Capaz' :
-                         analysis.data.capability.rcpk >= 1.0 ? '⚠️ Aceitável' :
-                         '✗ Incapaz'}
-                      </div>
-                    </div>
-                  )}
-
-                  {analysis.data.capability.rcps !== null && (
-                    <div className="bg-white/5 rounded-lg p-4">
-                      <div className="text-gray-400 text-sm mb-1">Cps (Superior)</div>
+                      <div className="text-gray-400 text-sm mb-1">X̄̄</div>
                       <div className="text-2xl font-bold text-white">
-                        {analysis.data.capability.rcps.toFixed(3)}
+                        {analysis.temperature.data.x_double_mean.toFixed(2)}°C
                       </div>
                     </div>
-                  )}
-
-                  {analysis.data.capability.rcpi !== null && (
                     <div className="bg-white/5 rounded-lg p-4">
-                      <div className="text-gray-400 text-sm mb-1">Cpi (Inferior)</div>
+                      <div className="text-gray-400 text-sm mb-1">R̄</div>
                       <div className="text-2xl font-bold text-white">
-                        {analysis.data.capability.rcpi.toFixed(3)}
+                        {analysis.temperature.data.r_mean.toFixed(2)}°C
                       </div>
                     </div>
-                  )}
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">σ</div>
+                      <div className="text-2xl font-bold text-white">
+                        {analysis.temperature.data.sigma.toFixed(2)}°C
+                      </div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">Amostras</div>
+                      <div className="text-2xl font-bold text-white">
+                        {analysis.temperature.data.total_samples}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Botão Relatório Completo */}
-            {analysis.report_available && (
-              <div className="text-center">
-                <button
-                  onClick={openReport}
-                  className="px-8 py-4 bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 rounded-xl text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all"
-                >
-                  📄 Ver Relatório Completo (HTML)
-                </button>
-              </div>
-            )}
+              {/* Estatísticas Umidade */}
+              {analysis.humidity?.data && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">💧 Estatísticas - Umidade</h2>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">X̄̄</div>
+                      <div className="text-2xl font-bold text-white">
+                        {analysis.humidity.data.x_double_mean.toFixed(2)}%
+                      </div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">R̄</div>
+                      <div className="text-2xl font-bold text-white">
+                        {analysis.humidity.data.r_mean.toFixed(2)}%
+                      </div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">σ</div>
+                      <div className="text-2xl font-bold text-white">
+                        {analysis.humidity.data.sigma.toFixed(2)}%
+                      </div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">Amostras</div>
+                      <div className="text-2xl font-bold text-white">
+                        {analysis.humidity.data.total_samples}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Limites de Controle - Lado a Lado */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Limites Temperatura */}
+              {analysis.temperature?.data && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">🌡️ Limites de Controle - Temperatura</h2>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-2">Gráfico X̄</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center bg-red-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LSC</span>
+                          <span className="font-bold text-white">{analysis.temperature.data.lsc_x_bar.toFixed(2)}°C</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-green-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LC</span>
+                          <span className="font-bold text-white">{analysis.temperature.data.x_double_mean.toFixed(2)}°C</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-red-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LIC</span>
+                          <span className="font-bold text-white">{analysis.temperature.data.lic_x_bar.toFixed(2)}°C</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-2">Gráfico R</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center bg-red-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LSC</span>
+                          <span className="font-bold text-white">{analysis.temperature.data.lsc_r.toFixed(2)}°C</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-green-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LC</span>
+                          <span className="font-bold text-white">{analysis.temperature.data.r_mean.toFixed(2)}°C</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-red-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LIC</span>
+                          <span className="font-bold text-white">{analysis.temperature.data.lic_r.toFixed(2)}°C</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Limites Umidade */}
+              {analysis.humidity?.data && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">💧 Limites de Controle - Umidade</h2>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-2">Gráfico X̄</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center bg-red-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LSC</span>
+                          <span className="font-bold text-white">{analysis.humidity.data.lsc_x_bar.toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-green-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LC</span>
+                          <span className="font-bold text-white">{analysis.humidity.data.x_double_mean.toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-red-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LIC</span>
+                          <span className="font-bold text-white">{analysis.humidity.data.lic_x_bar.toFixed(2)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-2">Gráfico R</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center bg-red-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LSC</span>
+                          <span className="font-bold text-white">{analysis.humidity.data.lsc_r.toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-green-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LC</span>
+                          <span className="font-bold text-white">{analysis.humidity.data.r_mean.toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-red-500/20 rounded p-2">
+                          <span className="text-gray-300 text-sm">LIC</span>
+                          <span className="font-bold text-white">{analysis.humidity.data.lic_r.toFixed(2)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Limites de Especificação - Lado a Lado */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Especificação Temperatura */}
+              {analysis.temperature?.data && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">🌡️ Limites de Especificação - Temperatura</h2>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">LSE</div>
+                      <div className="text-3xl font-bold text-red-400">
+                        {analysis.temperature.data.lse}°C
+                      </div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">LIE</div>
+                      <div className="text-3xl font-bold text-blue-400">
+                        {analysis.temperature.data.lie}°C
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Especificação Umidade */}
+              {analysis.humidity?.data && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">💧 Limites de Especificação - Umidade</h2>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">LSE</div>
+                      <div className="text-3xl font-bold text-red-400">
+                        {analysis.humidity.data.lse}%
+                      </div>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">LIE</div>
+                      <div className="text-3xl font-bold text-blue-400">
+                        {analysis.humidity.data.lie}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Status de Controle - Lado a Lado */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Status Temperatura */}
+              {analysis.temperature?.data && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">🌡️ Status de Controle - Temperatura</h2>
+                  
+                  <div className="space-y-3">
+                    <div className={`rounded-lg p-4 ${
+                      analysis.temperature.data.out_of_control_x === 0 
+                        ? 'bg-green-500/20 border border-green-500' 
+                        : 'bg-red-500/20 border border-red-500'
+                    }`}>
+                      <div className="text-white font-semibold mb-1">Gráfico X̄</div>
+                      <div className="text-xl font-bold text-white">
+                        {analysis.temperature.data.out_of_control_x === 0 ? '✓ SOB CONTROLE' : `✗ ${analysis.temperature.data.out_of_control_x} FORA`}
+                      </div>
+                    </div>
+
+                    <div className={`rounded-lg p-4 ${
+                      analysis.temperature.data.out_of_control_r === 0 
+                        ? 'bg-green-500/20 border border-green-500' 
+                        : 'bg-red-500/20 border border-red-500'
+                    }`}>
+                      <div className="text-white font-semibold mb-1">Gráfico R</div>
+                      <div className="text-xl font-bold text-white">
+                        {analysis.temperature.data.out_of_control_r === 0 ? '✓ SOB CONTROLE' : `✗ ${analysis.temperature.data.out_of_control_r} FORA`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Umidade */}
+              {analysis.humidity?.data && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">💧 Status de Controle - Umidade</h2>
+                  
+                  <div className="space-y-3">
+                    <div className={`rounded-lg p-4 ${
+                      analysis.humidity.data.out_of_control_x === 0 
+                        ? 'bg-green-500/20 border border-green-500' 
+                        : 'bg-red-500/20 border border-red-500'
+                    }`}>
+                      <div className="text-white font-semibold mb-1">Gráfico X̄</div>
+                      <div className="text-xl font-bold text-white">
+                        {analysis.humidity.data.out_of_control_x === 0 ? '✓ SOB CONTROLE' : `✗ ${analysis.humidity.data.out_of_control_x} FORA`}
+                      </div>
+                    </div>
+
+                    <div className={`rounded-lg p-4 ${
+                      analysis.humidity.data.out_of_control_r === 0 
+                        ? 'bg-green-500/20 border border-green-500' 
+                        : 'bg-red-500/20 border border-red-500'
+                    }`}>
+                      <div className="text-white font-semibold mb-1">Gráfico R</div>
+                      <div className="text-xl font-bold text-white">
+                        {analysis.humidity.data.out_of_control_r === 0 ? '✓ SOB CONTROLE' : `✗ ${analysis.humidity.data.out_of_control_r} FORA`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Capacidade do Processo - Lado a Lado */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Capacidade Temperatura */}
+              {analysis.temperature?.data?.capability && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">🌡️ Capacidade - Temperatura</h2>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {analysis.temperature.data.capability.rcp !== null && (
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="text-gray-400 text-sm mb-1">Cp</div>
+                        <div className={`text-2xl font-bold ${
+                          analysis.temperature.data.capability.rcp >= 1.33 ? 'text-green-400' :
+                          analysis.temperature.data.capability.rcp >= 1.0 ? 'text-yellow-400' :
+                          'text-red-400'
+                        }`}>
+                          {analysis.temperature.data.capability.rcp.toFixed(3)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {analysis.temperature.data.capability.rcp >= 1.33 ? '✓ Capaz' :
+                           analysis.temperature.data.capability.rcp >= 1.0 ? '⚠️ Aceitável' :
+                           '✗ Incapaz'}
+                        </div>
+                      </div>
+                    )}
+
+                    {analysis.temperature.data.capability.rcpk !== null && (
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="text-gray-400 text-sm mb-1">Cpk</div>
+                        <div className={`text-2xl font-bold ${
+                          analysis.temperature.data.capability.rcpk >= 1.33 ? 'text-green-400' :
+                          analysis.temperature.data.capability.rcpk >= 1.0 ? 'text-yellow-400' :
+                          'text-red-400'
+                        }`}>
+                          {analysis.temperature.data.capability.rcpk.toFixed(3)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {analysis.temperature.data.capability.rcpk >= 1.33 ? '✓ Capaz' :
+                           analysis.temperature.data.capability.rcpk >= 1.0 ? '⚠️ Aceitável' :
+                           '✗ Incapaz'}
+                        </div>
+                      </div>
+                    )}
+
+                    {analysis.temperature.data.capability.rcps !== null && (
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="text-gray-400 text-sm mb-1">Cps</div>
+                        <div className="text-2xl font-bold text-white">
+                          {analysis.temperature.data.capability.rcps.toFixed(3)}
+                        </div>
+                      </div>
+                    )}
+
+                    {analysis.temperature.data.capability.rcpi !== null && (
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="text-gray-400 text-sm mb-1">Cpi</div>
+                        <div className="text-2xl font-bold text-white">
+                          {analysis.temperature.data.capability.rcpi.toFixed(3)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Capacidade Umidade */}
+              {analysis.humidity?.data?.capability && (
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <h2 className="text-2xl font-bold text-white mb-4">💧 Capacidade - Umidade</h2>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {analysis.humidity.data.capability.rcp !== null && (
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="text-gray-400 text-sm mb-1">Cp</div>
+                        <div className={`text-2xl font-bold ${
+                          analysis.humidity.data.capability.rcp >= 1.33 ? 'text-green-400' :
+                          analysis.humidity.data.capability.rcp >= 1.0 ? 'text-yellow-400' :
+                          'text-red-400'
+                        }`}>
+                          {analysis.humidity.data.capability.rcp.toFixed(3)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {analysis.humidity.data.capability.rcp >= 1.33 ? '✓ Capaz' :
+                           analysis.humidity.data.capability.rcp >= 1.0 ? '⚠️ Aceitável' :
+                           '✗ Incapaz'}
+                        </div>
+                      </div>
+                    )}
+
+                    {analysis.humidity.data.capability.rcpk !== null && (
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="text-gray-400 text-sm mb-1">Cpk</div>
+                        <div className={`text-2xl font-bold ${
+                          analysis.humidity.data.capability.rcpk >= 1.33 ? 'text-green-400' :
+                          analysis.humidity.data.capability.rcpk >= 1.0 ? 'text-yellow-400' :
+                          'text-red-400'
+                        }`}>
+                          {analysis.humidity.data.capability.rcpk.toFixed(3)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {analysis.humidity.data.capability.rcpk >= 1.33 ? '✓ Capaz' :
+                           analysis.humidity.data.capability.rcpk >= 1.0 ? '⚠️ Aceitável' :
+                           '✗ Incapaz'}
+                        </div>
+                      </div>
+                    )}
+
+                    {analysis.humidity.data.capability.rcps !== null && (
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="text-gray-400 text-sm mb-1">Cps</div>
+                        <div className="text-2xl font-bold text-white">
+                          {analysis.humidity.data.capability.rcps.toFixed(3)}
+                        </div>
+                      </div>
+                    )}
+
+                    {analysis.humidity.data.capability.rcpi !== null && (
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="text-gray-400 text-sm mb-1">Cpi</div>
+                        <div className="text-2xl font-bold text-white">
+                          {analysis.humidity.data.capability.rcpi.toFixed(3)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

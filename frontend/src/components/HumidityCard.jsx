@@ -1,16 +1,16 @@
 import React from 'react';
 
-function TemperatureCard({ temperature, loading, error, onRefresh }) {
+function HumidityCard({ humidity, loading, error, onRefresh }) {
   return (
     <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 shadow-2xl border border-white/20 hover:border-white/30 transition-all duration-300">
       {/* Cabeçalho */}
       <div className="text-center mb-6">
-        <div className="text-6xl mb-3">🌡️</div>
-        <h2 className="text-2xl font-bold text-white mb-2">Temperatura</h2>
+        <div className="text-6xl mb-3">💧</div>
+        <h2 className="text-2xl font-bold text-white mb-2">Umidade do Ar</h2>
         <p className="text-gray-400 text-sm">Medição em tempo real</p>
       </div>
 
-      {/* Display de temperatura */}
+      {/* Display de umidade */}
       <div className="text-center mb-8">
         {loading ? (
           <div className="flex flex-col items-center gap-4">
@@ -19,17 +19,17 @@ function TemperatureCard({ temperature, loading, error, onRefresh }) {
           </div>
         ) : error ? (
           <div className="bg-red-500/20 border border-red-500 rounded-xl p-4 mb-4">
-            <p className="text-red-300 font-semibold mb-2">❌ Erro ao obter temperatura</p>
+            <p className="text-red-300 font-semibold mb-2">❌ Erro ao obter umidade</p>
             <p className="text-sm text-red-400">{error}</p>
           </div>
-        ) : temperature !== null ? (
+        ) : humidity !== null ? (
           <div>
             <div className="text-7xl font-bold text-white mb-2 drop-shadow-lg">
-              {temperature.toFixed(1)}
-              <span className="text-4xl text-orange-400">°C</span>
+              {humidity.toFixed(1)}
+              <span className="text-4xl text-blue-400">%</span>
             </div>
             <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
-              <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
               <span>Última leitura</span>
             </div>
           </div>
@@ -42,42 +42,39 @@ function TemperatureCard({ temperature, loading, error, onRefresh }) {
         )}
       </div>
 
-      {/* Indicador de nível de temperatura */}
-      {temperature !== null && !loading && !error && (
+      {/* Indicador de nível de umidade */}
+      {humidity !== null && !loading && !error && (
         <div className="mb-6">
           <div className="bg-white/5 rounded-full h-3 overflow-hidden">
             <div 
               className={`h-full transition-all duration-500 rounded-full ${
-                temperature < 15 ? 'bg-blue-500' :
-                temperature < 20 ? 'bg-cyan-500' :
-                temperature < 25 ? 'bg-green-500' :
-                temperature < 30 ? 'bg-yellow-500' :
-                temperature < 35 ? 'bg-orange-500' :
-                'bg-red-500'
+                humidity < 30 ? 'bg-red-500' :
+                humidity < 40 ? 'bg-orange-500' :
+                humidity < 60 ? 'bg-green-500' :
+                humidity < 70 ? 'bg-blue-500' :
+                'bg-purple-500'
               }`}
-              style={{ width: `${Math.min(Math.max((temperature / 50) * 100, 0), 100)}%` }}
+              style={{ width: `${Math.min(humidity, 100)}%` }}
             ></div>
           </div>
           <div className="flex justify-between text-xs text-gray-500 mt-2">
-            <span>Frio (0°C)</span>
-            <span>Ideal (20-25°C)</span>
-            <span>Quente (50°C)</span>
+            <span>Seco (0%)</span>
+            <span>Ideal (40-60%)</span>
+            <span>Úmido (100%)</span>
           </div>
           <div className="text-center mt-3">
             <span className={`inline-block px-4 py-1 rounded-full text-sm font-semibold ${
-              temperature < 15 ? 'bg-blue-500/20 text-blue-300' :
-              temperature < 20 ? 'bg-cyan-500/20 text-cyan-300' :
-              temperature < 25 ? 'bg-green-500/20 text-green-300' :
-              temperature < 30 ? 'bg-yellow-500/20 text-yellow-300' :
-              temperature < 35 ? 'bg-orange-500/20 text-orange-300' :
-              'bg-red-500/20 text-red-300'
+              humidity < 30 ? 'bg-red-500/20 text-red-300' :
+              humidity < 40 ? 'bg-orange-500/20 text-orange-300' :
+              humidity < 60 ? 'bg-green-500/20 text-green-300' :
+              humidity < 70 ? 'bg-blue-500/20 text-blue-300' :
+              'bg-purple-500/20 text-purple-300'
             }`}>
-              {temperature < 15 ? '❄️ Muito Frio' :
-               temperature < 20 ? '🧊 Frio' :
-               temperature < 25 ? '✅ Ideal' :
-               temperature < 30 ? '☀️ Agradável' :
-               temperature < 35 ? '🔥 Quente' :
-               '🌡️ Muito Quente'}
+              {humidity < 30 ? '🔥 Muito Seco' :
+               humidity < 40 ? '⚠️ Seco' :
+               humidity < 60 ? '✅ Ideal' :
+               humidity < 70 ? '💧 Úmido' :
+               '💦 Muito Úmido'}
             </span>
           </div>
         </div>
@@ -88,7 +85,7 @@ function TemperatureCard({ temperature, loading, error, onRefresh }) {
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           <span className={loading ? 'animate-spin' : ''}>🔄</span>
           {loading ? 'Atualizando...' : 'Atualizar'}
@@ -98,5 +95,4 @@ function TemperatureCard({ temperature, loading, error, onRefresh }) {
   );
 }
 
-export default TemperatureCard;
-
+export default HumidityCard;
