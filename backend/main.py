@@ -12,12 +12,30 @@ import os
 import sys
 import base64
 
+# Adiciona o diretório CEP-Prova/src ao path para importar os módulos
+cep_prova_path = str(Path(__file__).resolve().parent.parent / "CEP-Prova" / "src")
+sys.path.insert(0, cep_prova_path)
+
+# Importar módulos CEP com tratamento de erro
+try:
+    from x_r_graphs import XR_graph  # type: ignore
+    from process_capability import calculate_capability  # type: ignore
+    CEP_MODULES_AVAILABLE = True
+except ImportError as e:
+    CEP_MODULES_AVAILABLE = False
+    XR_graph = None
+    calculate_capability = None
+
 # Carregar variáveis de ambiente
 load_dotenv()
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Mostrar warning se módulos CEP não estão disponíveis
+if not CEP_MODULES_AVAILABLE:
+    logger.warning("Módulos CEP não disponíveis na inicialização")
 
 app = FastAPI(title="ESP32 Temperature Monitor API", version="1.0.0")
 
@@ -40,6 +58,254 @@ ESP32_READ_INTERVAL = int(os.getenv("ESP32_READ_INTERVAL", "30"))
 
 # Tamanho de cada amostra
 SAMPLE_SIZE = 5
+
+# ===== FUNÇÕES AUXILIARES PARA PROBABILIDADE E ARRANJOS =====
+
+def factorial(n):
+    """Calcula o fatorial de um número"""
+    if n < 0:
+        return None
+    if n == 0 or n == 1:
+        return 1
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result
+
+def binomial_coefficient(n, k):
+    """Calcula o coeficiente binomial C(n,k)"""
+    if k > n:
+        return 0
+    if k == 0 or k == n:
+        return 1
+    return factorial(n) // (factorial(k) * factorial(n - k))
+
+def binomial_probability(n, k, p):
+    """Calcula P(X = k) para distribuição binomial"""
+    coefficient = binomial_coefficient(n, k)
+    prob = coefficient * (p ** k) * ((1 - p) ** (n - k))
+    return prob
+
+def cumulative_binomial(n, k, p):
+    """Calcula P(X <= k) para distribuição binomial"""
+    total = 0
+    for i in range(k + 1):
+        total += binomial_probability(n, i, p)
+    return total
+
+def calculate_probability_success(success_rate, total_samples):
+    """
+    Calcula probabilidade de sucesso nos dados
+    success_rate: Taxa de sucesso esperada (0-1)
+    total_samples: Número total de amostras
+    """
+    exact_prob = binomial_probability(total_samples, total_samples, success_rate)
+    cumulative_prob = cumulative_binomial(total_samples, total_samples, success_rate)
+    mean = total_samples * success_rate
+    variance = total_samples * success_rate * (1 - success_rate)
+    
+    return {
+        "success_rate": float(success_rate),
+        "total_samples": total_samples,
+        "exact_probability": float(exact_prob),
+        "cumulative_probability": float(cumulative_prob),
+        "expected_value": float(mean),
+        "variance": float(variance),
+        "standard_deviation": float(variance ** 0.5)
+    }
+
+def calculate_arrangements(n, k, with_repetition=False):
+    """
+    Calcula arranjos e combinações
+    n: total de elementos
+    k: elementos a arranjar
+    with_repetition: com ou sem repetição
+    """
+    if n < 0 or k < 0:
+        return None
+    
+    if with_repetition:
+        arrangements = n ** k
+    else:
+        if k > n:
+            return None
+        arrangements = factorial(n) // factorial(n - k)
+    
+    combinations = binomial_coefficient(n, k) if not with_repetition else None
+    
+    return {
+        "n": n,
+        "k": k,
+        "arrangements": int(arrangements),
+        "combinations": int(combinations) if combinations else None,
+        "with_repetition": with_repetition,
+        "formula": f"{n}^{k}" if with_repetition else f"{n}!/{n-k}!"
+    }
+
+# ===== FUNÇÕES PARA ANÁLISE DAS REGRAS DO WESTERN ELECTRIC =====
+
+def analyze_western_electric_rules(xr_chart_obj, chart_type="X"):
+    """
+    Analisa as regras do Western Electric Handbook
+    Retorna status de cada regra (violada ou dentro da norma)
+    """
+    
+    rules = {}
+    
+    try:
+        df = xr_chart_obj.df
+        
+        if chart_type == "X" or chart_type == "X-bar":
+            values = df['X_bar'].values
+            center_line = xr_chart_obj.x_double_mean
+            lsc = xr_chart_obj.lsc_x_bar_graph
+            lic = xr_chart_obj.lic_x_bar_graph
+            sigma = (lsc - center_line) / 3  # sigma baseado nos limites de controle
+        else:  # R chart
+            values = df['R'].values
+            center_line = xr_chart_obj.r_mean
+            lsc = xr_chart_obj.lsc_r_bar_graph
+            lic = xr_chart_obj.lic_r_bar_graph
+            sigma = (lsc - center_line) / 3
+        
+        # Regra 1: Um ponto fora de 3-sigma
+        rule_1_violated = any(v > lsc or v < lic for v in values)
+        rules['rule_1'] = {
+            'name': 'Um ponto fora de 3-sigma (±3σ)',
+            'violated': rule_1_violated,
+            'description': 'Qualquer ponto fora dos limites de controle',
+            'status': 'VIOLADA' if rule_1_violated else 'OK'
+        }
+        
+        # Regra 2: Nove pontos consecutivos no mesmo lado da linha central
+        rule_2_violated = False
+        for i in range(len(values) - 8):
+            above = all(v > center_line for v in values[i:i+9])
+            below = all(v < center_line for v in values[i:i+9])
+            if above or below:
+                rule_2_violated = True
+                break
+        
+        rules['rule_2'] = {
+            'name': '9 pontos consecutivos no mesmo lado',
+            'violated': rule_2_violated,
+            'description': 'Nove pontos consecutivos acima ou abaixo da linha central',
+            'status': 'VIOLADA' if rule_2_violated else 'OK'
+        }
+        
+        # Regra 3: Seis pontos consecutivos em ordem crescente ou decrescente
+        rule_3_violated = False
+        for i in range(len(values) - 5):
+            increasing = all(values[i+j] < values[i+j+1] for j in range(5))
+            decreasing = all(values[i+j] > values[i+j+1] for j in range(5))
+            if increasing or decreasing:
+                rule_3_violated = True
+                break
+        
+        rules['rule_3'] = {
+            'name': '6 pontos em ordem crescente/decrescente',
+            'violated': rule_3_violated,
+            'description': 'Seis pontos consecutivos em tendência crescente ou decrescente',
+            'status': 'VIOLADA' if rule_3_violated else 'OK'
+        }
+        
+        # Regra 4: Quatorze pontos alternando para cima e para baixo
+        rule_4_violated = False
+        if len(values) >= 14:
+            for i in range(len(values) - 13):
+                alternating = True
+                for j in range(13):
+                    if j % 2 == 0:
+                        if values[i+j] >= values[i+j+1]:
+                            alternating = False
+                            break
+                    else:
+                        if values[i+j] <= values[i+j+1]:
+                            alternating = False
+                            break
+                if alternating:
+                    rule_4_violated = True
+                    break
+        
+        rules['rule_4'] = {
+            'name': '14 pontos alternando acima/abaixo',
+            'violated': rule_4_violated,
+            'description': 'Quatorze pontos consecutivos alternando para cima e para baixo',
+            'status': 'VIOLADA' if rule_4_violated else 'OK'
+        }
+        
+        # Regra 5: Dois de três pontos fora de 2-sigma
+        rule_5_violated = False
+        limit_2sigma = center_line + 2 * sigma
+        limit_2sigma_lower = center_line - 2 * sigma
+        
+        for i in range(len(values) - 2):
+            outside_2sigma = sum(1 for v in values[i:i+3] if v > limit_2sigma or v < limit_2sigma_lower)
+            if outside_2sigma >= 2:
+                rule_5_violated = True
+                break
+        
+        rules['rule_5'] = {
+            'name': '2 de 3 pontos fora de 2-sigma',
+            'violated': rule_5_violated,
+            'description': 'Dois de três pontos consecutivos fora de ±2σ',
+            'status': 'VIOLADA' if rule_5_violated else 'OK'
+        }
+        
+        # Regra 6: Quatro de cinco pontos fora de 1-sigma
+        rule_6_violated = False
+        limit_1sigma = center_line + sigma
+        limit_1sigma_lower = center_line - sigma
+        
+        for i in range(len(values) - 4):
+            outside_1sigma = sum(1 for v in values[i:i+5] if v > limit_1sigma or v < limit_1sigma_lower)
+            if outside_1sigma >= 4:
+                rule_6_violated = True
+                break
+        
+        rules['rule_6'] = {
+            'name': '4 de 5 pontos fora de 1-sigma',
+            'violated': rule_6_violated,
+            'description': 'Quatro de cinco pontos consecutivos fora de ±1σ',
+            'status': 'VIOLADA' if rule_6_violated else 'OK'
+        }
+        
+        # Regra 7: Quinze pontos consecutivos dentro de 1-sigma
+        rule_7_violated = False
+        for i in range(len(values) - 14):
+            inside_1sigma = all(limit_1sigma_lower <= v <= limit_1sigma for v in values[i:i+15])
+            if inside_1sigma:
+                rule_7_violated = True
+                break
+        
+        rules['rule_7'] = {
+            'name': '15 pontos consecutivos dentro de 1-sigma',
+            'violated': rule_7_violated,
+            'description': 'Quinze pontos consecutivos dentro de ±1σ (falta de variação)',
+            'status': 'VIOLADA' if rule_7_violated else 'OK'
+        }
+        
+        # Regra 8: Oito pontos consecutivos fora de 1-sigma
+        rule_8_violated = False
+        for i in range(len(values) - 7):
+            outside_1sigma = all(v > limit_1sigma or v < limit_1sigma_lower for v in values[i:i+8])
+            if outside_1sigma:
+                rule_8_violated = True
+                break
+        
+        rules['rule_8'] = {
+            'name': '8 pontos consecutivos fora de 1-sigma',
+            'violated': rule_8_violated,
+            'description': 'Oito pontos consecutivos fora de ±1σ (muita variação)',
+            'status': 'VIOLADA' if rule_8_violated else 'OK'
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao analisar regras Western Electric: {e}")
+        return None
+    
+    return rules
+
 
 class TemperatureReading(BaseModel):
     temperature: float
@@ -560,6 +826,13 @@ async def analyze_cep():
     Executa análise CEP nos dados de temperatura
     """
     try:
+        # Verificar se os módulos CEP estão disponíveis
+        if not CEP_MODULES_AVAILABLE:
+            raise HTTPException(
+                status_code=501,
+                detail="Módulos CEP não disponíveis. Certifique-se de que CEP-Prova/src contém x_r_graphs.py e process_capability.py"
+            )
+        
         # Verificar se há dados suficientes
         data = load_data()
         
@@ -569,16 +842,9 @@ async def analyze_cep():
                 detail=f"Dados insuficientes para análise CEP. Necessário mínimo 5 amostras, encontradas {len(data)}"
             )
         
-        # Adicionar path do CEP-Prova
-        cep_path = Path(__file__).parent.parent / "CEP-Prova" / "src"
-        if str(cep_path) not in sys.path:
-            sys.path.append(str(cep_path))
-        
-        from x_r_graphs import XR_graph
-        from process_capability import calculate_capability
-        
         # Caminhos
         temperature_data_path = str(DATA_FILE.absolute())
+        cep_path = Path(__file__).parent.parent / "CEP-Prova" / "src"
         constants_path = str(cep_path / "json_files" / "constantes_cep.json")
         
         # Criar gráfico X-R
@@ -753,14 +1019,15 @@ async def analyze_cep_combined():
                 detail=f"Dados de umidade insuficientes. Necessário 5 amostras, encontradas {len(hum_data)}"
             )
         
+        # Verificar se os módulos CEP estão disponíveis
+        if not CEP_MODULES_AVAILABLE:
+            raise HTTPException(
+                status_code=501,
+                detail="Módulos CEP não disponíveis. Certifique-se de que CEP-Prova/src contém x_r_graphs.py e process_capability.py"
+            )
+        
         # Path CEP-Prova
         cep_path = Path(__file__).parent.parent / "CEP-Prova" / "src"
-        if str(cep_path) not in sys.path:
-            sys.path.append(str(cep_path))
-        
-        from x_r_graphs import XR_graph
-        from process_capability import calculate_capability
-        
         constants_path = str(cep_path / "json_files" / "constantes_cep.json")
         
         # ===== ANÁLISE TEMPERATURA =====
@@ -871,19 +1138,48 @@ async def analyze_cep_combined():
         
         logger.info("Análise CEP combinada concluída com sucesso")
         
+        # ===== ANÁLISE DAS REGRAS DO WESTERN ELECTRIC =====
+        
+        temp_western_rules = analyze_western_electric_rules(temp_xr, chart_type="X")
+        hum_western_rules = analyze_western_electric_rules(hum_xr, chart_type="X")
+        
+        # ===== CÁLCULOS DE PROBABILIDADE E ARRANJOS =====
+        
+        # Calcular probabilidade de sucesso baseado na capacidade do processo
+        # Usar Cpk como indicador de sucesso (quanto maior, melhor)
+        temp_success_rate = min(1.0, max(0.0, temp_xr.capability.rcpk / 1.33)) if hasattr(temp_xr, 'capability') and temp_xr.capability.rcpk else 0.5
+        hum_success_rate = min(1.0, max(0.0, hum_xr.capability.rcpk / 1.33)) if hasattr(hum_xr, 'capability') and hum_xr.capability.rcpk else 0.5
+        
+        probability_analysis = {
+            "temperature": calculate_probability_success(temp_success_rate, len(temp_data)),
+            "humidity": calculate_probability_success(hum_success_rate, len(hum_data))
+        }
+        
+        # Cálculos de arranjos úteis
+        arrangements_analysis = {
+            "temperature_arrangements_5_2": calculate_arrangements(5, 2, False),
+            "temperature_arrangements_5_3": calculate_arrangements(5, 3, False),
+            "humidity_arrangements_5_2": calculate_arrangements(5, 2, False),
+            "humidity_arrangements_5_3": calculate_arrangements(5, 3, False)
+        }
+        
         return {
             "status": "success",
             "message": "Análise CEP combinada executada com sucesso",
             "temperature": {
                 "data": temp_analysis,
                 "chart_base64": temp_chart_base64,
-                "report_available": temp_report_new.exists()
+                "report_available": temp_report_new.exists(),
+                "western_rules": temp_western_rules
             },
             "humidity": {
                 "data": hum_analysis,
                 "chart_base64": hum_chart_base64,
-                "report_available": hum_report_new.exists()
-            }
+                "report_available": hum_report_new.exists(),
+                "western_rules": hum_western_rules
+            },
+            "probability_analysis": probability_analysis,
+            "arrangements_analysis": arrangements_analysis
         }
         
     except HTTPException:

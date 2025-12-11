@@ -115,18 +115,18 @@ function App() {
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               <div className="text-white text-xl font-bold">🌡️ ESP32 Monitor</div>
-              <div className="flex gap-4">
+              <div className="flex gap-2 flex-wrap justify-end">
                 <button
                   onClick={() => setCurrentPage('monitor')}
-                  className="px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-all"
+                  className="px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-all text-sm md:text-base"
                 >
                   📊 Monitor
                 </button>
                 <button
                   onClick={() => setCurrentPage('cep')}
-                  className="px-4 py-2 rounded-lg bg-blue-500 text-white font-semibold"
+                  className="px-3 py-2 rounded-lg bg-blue-500 text-white font-semibold text-sm md:text-base"
                 >
-                  📈 Análise CEP
+                  📈 CEP
                 </button>
               </div>
             </div>
@@ -146,18 +146,18 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="text-white text-xl font-bold">🌡️💧 ESP32 Monitor</div>
-            <div className="flex gap-4">
+            <div className="flex gap-2 flex-wrap justify-end">
               <button
                 onClick={() => setCurrentPage('monitor')}
-                className="px-4 py-2 rounded-lg bg-blue-500 text-white font-semibold"
+                className="px-3 py-2 rounded-lg bg-blue-500 text-white font-semibold text-sm md:text-base"
               >
                 📊 Monitor
               </button>
               <button
                 onClick={() => setCurrentPage('cep')}
-                className="px-4 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-all"
+                className="px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10 transition-all text-sm md:text-base"
               >
-                📈 Análise CEP
+                📈 CEP
               </button>
             </div>
           </div>
